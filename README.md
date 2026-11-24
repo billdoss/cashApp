@@ -20,14 +20,13 @@ Application mobile (PWA) de gestion de dépenses : budgets avec alertes, statist
 | `js/lock.js` | Écrans de création, de code et de verrouillage |
 | `sw.js`, `manifest.webmanifest` | Mode hors ligne et installation |
 
-## Phase 2 : Supabase et synchronisation
+## Phase 2 : synchronisation Supabase (optionnelle)
 
-Le branchement se fait dans `js/storage.js` avec un second adaptateur, sans toucher à l'interface :
-
-1. Tables `profils`, `categories`, `depenses`, `objectifs`, chacune avec `user_id` et une règle Row Level Security (`user_id = auth.uid()`).
-2. Connexion par e-mail ou code SMS (Supabase Auth). Le code à 6 chiffres reste un verrou local de l'application.
-3. Les identifiants des dépenses, budgets et objectifs sont déjà stables, et `updatedAt` est ajouté à chaque enregistrement : la fusion avec le serveur se fait sans doublons.
-4. Écriture locale d'abord, envoi en arrière-plan dès que le réseau revient.
+- `supabase/schema.sql` : tables `profile`, `categories`, `expenses`, `goals`, avec Row Level Security (chaque utilisateur ne voit que ses lignes). À exécuter une fois dans Supabase > SQL Editor.
+- `js/config.js` : URL du projet et clé publique `anon`. Tant qu'ils sont vides, l'application reste 100 % locale.
+- `js/sync.js` : connexion par e-mail et mot de passe, puis synchronisation automatique ligne par ligne. La modification la plus récente gagne, les suppressions sont propagées, les données d'exemple ne sont jamais envoyées. Un nouvel appareil récupère les données du cloud sans écraser celles qui existent.
+- La session cloud est gardée dans le coffre chiffré : verrouiller l'application la coupe, le code la remet.
+- Hors ligne, tout fonctionne ; les changements partent au retour du réseau.
 
 ## Déploiement
 

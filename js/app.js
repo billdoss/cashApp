@@ -66,7 +66,12 @@ function demoData(now) {
 
 /* ---------- enregistrement (via Store, chiffré par Auth) ---------- */
 let ptimer = 0, saving = Promise.resolve();
-const setSync = k => { const el = $("#sync"); if (el) el.textContent = { ok: "Sur cet appareil", sav: "Enregistrement…", err: "Erreur d'enregistrement" }[k] || ""; };
+let cloudSt = { state: "off" };
+function cloudLabel() {
+  if (!S || !S.cloud || !S.cloud.session) return "Sur cet appareil";
+  return { syncing: "Synchronisation…", ok: "Synchronisé", offline: "Hors ligne", error: "Synchro en erreur", auth: "Reconnexion requise", config: "Cloud non configuré" }[cloudSt.state] || "Cloud connecté";
+}
+const setSync = k => { const el = $("#sync"); if (el) el.textContent = { ok: cloudLabel(), sav: "Enregistrement…", err: "Erreur d'enregistrement" }[k] || ""; };
 function persist() { clearTimeout(ptimer); setSync("sav"); ptimer = setTimeout(flushNow, 350); }
 function flushNow() {
   clearTimeout(ptimer); ptimer = 0;
@@ -75,12 +80,17 @@ function flushNow() {
   saving = saving.then(() => Store.save(snap)).then(() => setSync("ok")).catch(() => setSync("err"));
   return saving;
 }
+function saveQuiet() { /* enregistre sans relancer la synchronisation */
+  if (!S || !Auth.unlocked()) return;
+  const snap = JSON.parse(JSON.stringify(S));
+  saving = saving.then(() => Store.adapter.save(snap)).catch(() => { });
+}
 function afterUnlock(state) {
   S = state && state.cats ? state : freshState(); nowKey = mk(new Date());
   ui = { tab: "home", month: nowKey, seg: "bilan", cat: "all", dep: null, undo: null };
-  setSync("ok"); render(); window.scrollTo(0, 0);
+  cloudSt = { state: "off" }; setSync("ok"); render(); window.scrollTo(0, 0); Sync.schedule(400);
 }
-function clearScreen() { S = null; $("#view").innerHTML = ""; $("#nav").innerHTML = ""; closeSheet(); $("#toast").hidden = true; }
+function clearScreen() { Sync.onLock(); S = null; $("#view").innerHTML = ""; $("#nav").innerHTML = ""; closeSheet(); $("#toast").hidden = true; }
 
 /* ---------- analyse ---------- */
 function totals(key) { const by = {}; let t = 0; for (const x of S.tx) if (x.d.startsWith(key)) { by[x.c] = (by[x.c] || 0) + x.a; t += x.a; } return { by, t }; }
@@ -326,7 +336,8 @@ function sheetSettings() {
     <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
     <div class="lbl" style="margin-bottom:8px">Mes données</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="loaddemo">Charger des exemples</button><button class="btn ghost sm" data-act="reset1" id="resetbtn">Tout effacer</button></div>
-    <p class="small muted">Vos données sont chiffrées et stockées uniquement sur ce téléphone. Les alertes apparaissent dans l'application, à l'ouverture et à chaque dépense ajoutée.</p>
+    <p class="small muted">${S.cloud && S.cloud.session ? "Vos données sont chiffrées sur ce téléphone et sauvegardées dans votre compte cloud." : "Vos données sont chiffrées et stockées uniquement sur ce téléphone."} Les alertes apparaissent dans l'application, à l'ouverture et à chaque dépense ajoutée.</p>
+    ${cloudBlock()}
     <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
     <div class="lbl" style="margin-bottom:8px">Sécurité</div>
     <div class="field"><label for="s-lock">Verrouillage automatique</label><select id="s-lock">${[[0, "Dès que je quitte l'application"], [1, "Après 1 minute"], [2, "Après 2 minutes"], [5, "Après 5 minutes"], [15, "Après 15 minutes"]].map(([m, l]) => `<option value="${m}" ${Lock.delay() === m ? "selected" : ""}>${l}</option>`).join("")}</select></div>
@@ -336,6 +347,31 @@ function sheetSettings() {
     if (i >= 0) S.income = Math.round(i); if (t >= 50 && t <= 100) S.thr = Math.round(t); S.cur = $("#s-cur").value.trim() || "FCFA";
     persist(); closeSheet(); render(); toast("Paramètres enregistrés");
   });
+}
+function cloudBlock() {
+  if (!Sync.configured()) return "";
+  const hr = '<hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><div class="lbl" style="margin-bottom:8px">Compte cloud</div>';
+  if (S.cloud && S.cloud.session) {
+    const t = S.cloud.lastSync ? new Date(S.cloud.lastSync).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "pas encore";
+    const msg = cloudSt.state === "error" || cloudSt.state === "auth" ? `<br><b style="color:var(--bad)">${esc(cloudSt.state === "auth" ? "Votre session a expiré : déconnectez-vous puis reconnectez-vous." : cloudSt.msg || "Erreur de synchronisation.")}</b>` : "";
+    return `${hr}<p class="small" style="margin:0 0 10px">Connecté : <b>${esc(S.cloud.email)}</b><br><span class="muted">État : ${esc(cloudLabel())} · dernière synchro : ${esc(t)}</span>${msg}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloudsync">Synchroniser maintenant</button><button class="btn ghost sm" data-act="cloudout">Se déconnecter</button></div>
+      <p class="small muted">Vos données sont sauvegardées et partagées entre vos appareils. « Tout effacer » s'applique aussi au cloud.</p>`;
+  }
+  return `${hr}<p class="small muted" style="margin:0 0 10px">Connectez un compte pour sauvegarder vos données et les retrouver sur d'autres appareils. La synchronisation est automatique.</p>
+    <div class="field"><label for="c-mail">E-mail</label><input type="text" id="c-mail" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false"></div>
+    <div class="field"><label for="c-pass">Mot de passe</label><input type="password" id="c-pass" autocomplete="current-password" style="width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--line);background:var(--bg);min-height:44px"></div>
+    <p class="small" id="c-err" role="alert" style="min-height:20px;margin:0 0 8px"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="cloudin">Se connecter</button><button class="btn ghost sm" data-act="cloudup">Créer un compte</button></div>`;
+}
+async function cloudAuth(create) {
+  const e = $("#c-mail").value.trim(), p = $("#c-pass").value, er = $("#c-err");
+  er.style.color = "var(--bad)";
+  if (!/^\S+@\S+\.\S+$/.test(e)) { er.textContent = "Adresse e-mail invalide."; return; }
+  if (p.length < (create ? 8 : 1)) { er.textContent = create ? "Mot de passe : 8 caractères minimum." : "Entrez votre mot de passe."; return; }
+  er.style.color = "var(--muted)"; er.textContent = "Connexion…";
+  try { await Sync.signIn(e, p, create); closeSheet(); render(); toast("Connecté. Synchronisation en cours…"); }
+  catch (x) { er.style.color = "var(--bad)"; er.textContent = (x && x.message) || "Connexion impossible."; }
 }
 function sheetGoal() {
   openSheet(`<h2>Nouvel objectif</h2><form id="fgoal">
@@ -381,6 +417,9 @@ document.addEventListener("click", e => {
     case "addbud": sheetBudget(); break;
     case "settings": sheetSettings(); break;
     case "close": closeSheet(); break;
+    case "cloudin": case "cloudup": cloudAuth(a === "cloudup"); break;
+    case "cloudsync": Sync.schedule(0); toast("Synchronisation lancée"); break;
+    case "cloudout": Sync.signOut().then(() => { closeSheet(); render(); toast("Déconnecté du cloud. Vos données restent sur ce téléphone."); }); break;
     case "lockNow": Lock.lockNow(); break;
     case "chpin": sheetPin(); break;
     case "delacct": if (!el.dataset.armed) { el.dataset.armed = "1"; el.textContent = "Confirmer la suppression"; el.classList.add("danger"); el.classList.remove("ghost"); } else { Auth.wipe(); location.reload(); } break;
@@ -396,7 +435,7 @@ document.addEventListener("click", e => {
     case "depok": { const v = num($("#depamt").value), g = S.goals.find(x => x.id === id); if (g && v > 0) { g.saved += Math.round(v); ui.dep = null; persist(); render(); toast(`${fmt(v)} ajoutés à « ${g.name} »`); } break; }
     case "cleardemo": S.tx = S.tx.filter(t => !t.x); S.goals = S.goals.filter(g => !g.x); persist(); render(); toast("Exemples supprimés. À vous de jouer !"); break;
     case "loaddemo": { const d = demoData(new Date()); S.tx = S.tx.filter(t => !t.x).concat(d.tx); S.goals = S.goals.filter(g => !g.x).concat(d.goals); persist(); closeSheet(); render(); toast("Exemples chargés"); break; }
-    case "reset1": if (!resetArmed) { resetArmed = true; el.textContent = "Confirmer l'effacement"; el.classList.add("danger"); el.classList.remove("ghost"); } else { resetArmed = false; S = freshState(); persist(); closeSheet(); render(); toast("Toutes les données ont été effacées"); } break;
+    case "reset1": if (!resetArmed) { resetArmed = true; el.textContent = "Confirmer l'effacement"; el.classList.add("danger"); el.classList.remove("ghost"); } else { resetArmed = false; const cl = S.cloud; S = freshState(); if (cl) S.cloud = cl; persist(); closeSheet(); render(); toast("Toutes les données ont été effacées"); } break;
   }
 });
 document.addEventListener("change", e => {
@@ -423,3 +462,14 @@ function sheetPin() {
     catch (x) { er.textContent = x && x.code === "bad_pin" ? "Le code actuel est incorrect." : "Impossible de changer le code."; }
   });
 }
+
+/* ---------- synchronisation : branchement et déclencheurs ---------- */
+Sync.init({
+  state: () => S,
+  saveQuiet,
+  changed: () => { if (S) render(); },
+  status: st => { cloudSt = st; if (S) setSync("ok"); }
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) Sync.schedule(300); });
+window.addEventListener("online", () => Sync.schedule(300));
+setInterval(() => { if (!document.hidden) Sync.schedule(0); }, 60000);

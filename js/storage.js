@@ -15,5 +15,5 @@ const LocalAdapter = {
 
 const Store = {
   adapter: LocalAdapter,
-  save(state) { state.updatedAt = Date.now(); return this.adapter.save(state); }
+  save(state) { state.updatedAt = Date.now(); return this.adapter.save(state).then(() => { if (typeof Sync !== "undefined") Sync.schedule(); }); }
 };
