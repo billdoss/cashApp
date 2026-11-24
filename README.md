@@ -31,7 +31,8 @@ Le branchement se fait dans `js/storage.js` avec un second adaptateur, sans touc
 
 ## Déploiement
 
-Chaque push sur `main` déploie le site sur GitHub Pages (`.github/workflows/pages.yml`).
+GitHub Pages sert directement la racine de la branche `main` (Settings > Pages > Deploy from a branch > `main` / `(root)`).
+Chaque push sur `main` met le site à jour en une à deux minutes.
 Changer `VERSION` dans `sw.js` à chaque mise en ligne pour que les téléphones récupèrent les nouveaux fichiers.
 
 ## Tester en local
