@@ -39,6 +39,14 @@ const BASE_CATS = [
 ];
 const freshState = () => ({ v: 1, cur: "FCFA", income: 350000, thr: 80, cats: BASE_CATS.map((c, i) => ({ ...c, color: COLORS[i % COLORS.length] })), tx: [], goals: [] });
 
+/* Compte réel : on part de zéro (revenu et budgets à définir). */
+const freshCloudState = () => ({ ...freshState(), income: 0, cats: BASE_CATS.map((c, i) => ({ ...c, budget: 0, color: COLORS[i % COLORS.length] })) });
+const isDemo = () => Auth.mode() === "demo";
+function suggestBudgets(income) { /* 85 % du revenu réparti comme le modèle de base, le reste est l'épargne */
+  const tot = sum(BASE_CATS.map(c => c.budget));
+  for (const c of S.cats) { const b = BASE_CATS.find(x => x.id === c.id); if (b) c.budget = Math.max(0, Math.round(income * 0.85 * b.budget / tot / 500) * 500); }
+}
+
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function demoData(now) {
   const tx = [], r = rng(11), cur = mk(now);
@@ -68,7 +76,8 @@ function demoData(now) {
 let ptimer = 0, saving = Promise.resolve();
 let cloudSt = { state: "off" };
 function cloudLabel() {
-  if (!S || !S.cloud || !S.cloud.session) return "Sur cet appareil";
+  if (isDemo()) return "Mode démo";
+  if (!S || !S.cloud || !S.cloud.session) return "";
   return { syncing: "Synchronisation…", ok: "Synchronisé", offline: "Hors ligne", error: "Synchro en erreur", auth: "Reconnexion requise", config: "Cloud non configuré" }[cloudSt.state] || "Cloud connecté";
 }
 const setSync = k => { const el = $("#sync"); if (el) el.textContent = { ok: cloudLabel(), sav: "Enregistrement…", err: "Erreur d'enregistrement" }[k] || ""; };
@@ -88,7 +97,7 @@ function saveQuiet() { /* enregistre sans relancer la synchronisation */
 function afterUnlock(state) {
   S = state && state.cats ? state : freshState(); nowKey = mk(new Date());
   ui = { tab: "home", month: nowKey, seg: "bilan", cat: "all", dep: null, undo: null };
-  cloudSt = { state: "off" }; setSync("ok"); render(); window.scrollTo(0, 0); Sync.schedule(400);
+  cloudSt = { state: "off" }; const lb = $('[data-act=lockNow]'); if (lb) lb.hidden = isDemo(); setSync("ok"); render(); window.scrollTo(0, 0); Sync.schedule(400);
 }
 function clearScreen() { Sync.onLock(); S = null; $("#view").innerHTML = ""; $("#nav").innerHTML = ""; closeSheet(); $("#toast").hidden = true; }
 
@@ -193,14 +202,15 @@ function renderNav(A) {
 function monthNav() {
   return `<div class="card mnav"><button class="icon-btn" data-act="mprev" aria-label="Mois précédent"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><b>${esc(monthLabel(ui.month))}</b><button class="icon-btn" data-act="mnext" aria-label="Mois suivant" ${ui.month >= nowKey ? "disabled" : ""}><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>`;
 }
-const demoBanner = () => (S.tx.some(t => t.x) || S.goals.some(g => g.x)) ? `<div class="banner"><span>Les chiffres affichés sont des <b>exemples</b>. Votre revenu et vos budgets sont modifiables dans Budgets.</span><button class="btn sm" data-act="cleardemo">Repartir de zéro</button></div>` : "";
+const demoBanner = () => isDemo() ? `<div class="banner"><span><b>Mode démo</b> : données d'exemple stockées seulement sur cet appareil, sans PIN ni sauvegarde.</span><span style="display:flex;gap:6px;flex:none"><button class="btn ghost sm" data-act="cleardemo">Vider</button><button class="btn sm" data-act="exitdemo">Créer un compte</button></span></div>` : "";
+const setupCard = () => (!isDemo() && !S.income) ? `<section class="card"><h2>Bienvenue ! Configurons votre budget</h2><p class="small muted" style="margin:0 0 12px">Indiquez votre revenu mensuel. Nous répartissons automatiquement des budgets par catégorie (modifiables ensuite dans Budgets) et gardons 15 % pour l'épargne.</p><div class="field"><label for="setinc">Revenu mensuel (${esc(S.cur)})</label><input type="text" id="setinc" inputmode="numeric" placeholder="ex. 350000"></div><button class="btn" data-act="setupinc">Enregistrer</button></section>` : "";
 
 function viewHome(A) {
   const al = alertsOf(A), tips = tipsOf(A).slice(0, 2), lvl = A.left < 0 ? "over" : (A.spent / (A.totalBudget || 1) >= S.thr / 100 ? "near" : "ok");
   const daily = A.rem >= 0 && A.left > 0 ? A.left / (A.rem + 1) : 0, paceP = Math.min(100, A.day / A.dim * 100), usedP = Math.min(100, A.spent / (A.totalBudget || 1) * 100);
   const projLvl = A.totalBudget && A.projT > A.totalBudget ? "over" : "ok";
   const recent = [...S.tx].sort((a, b) => b.d.localeCompare(a.d) || 0).slice(0, 5);
-  return `<div class="hello">Bonjour, <b>${esc(Auth.name())}</b></div>${demoBanner()}
+  return `<div class="hello">${Auth.name() ? `Bonjour, <b>${esc(Auth.name())}</b>` : "Bonjour"}</div>${demoBanner()}${setupCard()}
   <section class="card hero"><div class="eyebrow">${A.left < 0 ? "Budget dépassé de" : "Reste à dépenser"} · ${esc(monthLabel(A.key))}</div>
     <div class="big">${fmtN(Math.abs(A.left))} <small>${esc(S.cur)}</small></div>
     <div class="bar ${lvl}" role="img" aria-label="${Math.round(usedP)} % du budget utilisé"><i style="width:${usedP}%"></i></div>
@@ -335,13 +345,13 @@ function sheetSettings() {
     <div class="actions"><button type="button" class="btn ghost" data-act="close">Fermer</button><button class="btn" type="submit">Enregistrer</button></div></form>
     <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
     <div class="lbl" style="margin-bottom:8px">Mes données</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="loaddemo">Charger des exemples</button><button class="btn ghost sm" data-act="reset1" id="resetbtn">Tout effacer</button></div>
-    <p class="small muted">${S.cloud && S.cloud.session ? "Vos données sont chiffrées sur ce téléphone et sauvegardées dans votre compte cloud." : "Vos données sont chiffrées et stockées uniquement sur ce téléphone."} Les alertes apparaissent dans l'application, à l'ouverture et à chaque dépense ajoutée.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${isDemo() ? '<button class="btn ghost sm" data-act="loaddemo">Recharger les exemples</button>' : ""}<button class="btn ghost sm" data-act="reset1" id="resetbtn">Tout effacer</button></div>
+    <p class="small muted">Les alertes apparaissent dans l'application, à l'ouverture et à chaque dépense ajoutée.</p>
     ${cloudBlock()}
-    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+    ${isDemo() ? "" : `<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
     <div class="lbl" style="margin-bottom:8px">Sécurité</div>
     <div class="field"><label for="s-lock">Verrouillage automatique</label><select id="s-lock">${[[0, "Dès que je quitte l'application"], [1, "Après 1 minute"], [2, "Après 2 minutes"], [5, "Après 5 minutes"], [15, "Après 15 minutes"]].map(([m, l]) => `<option value="${m}" ${Lock.delay() === m ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="lockNow">Verrouiller maintenant</button><button class="btn ghost sm" data-act="chpin">Changer le code</button><button class="btn ghost sm" data-act="delacct">Supprimer mon compte</button></div>`, "#s-inc");
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="lockNow">Verrouiller maintenant</button><button class="btn ghost sm" data-act="chpin">Changer le PIN</button></div>`}`, "#s-inc");
   $("#fset").addEventListener("submit", e => {
     e.preventDefault(); const i = num($("#s-inc").value), t = num($("#s-thr").value);
     if (i >= 0) S.income = Math.round(i); if (t >= 50 && t <= 100) S.thr = Math.round(t); S.cur = $("#s-cur").value.trim() || "FCFA";
@@ -349,29 +359,14 @@ function sheetSettings() {
   });
 }
 function cloudBlock() {
-  if (!Sync.configured()) return "";
-  const hr = '<hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><div class="lbl" style="margin-bottom:8px">Compte cloud</div>';
-  if (S.cloud && S.cloud.session) {
-    const t = S.cloud.lastSync ? new Date(S.cloud.lastSync).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "pas encore";
-    const msg = cloudSt.state === "error" || cloudSt.state === "auth" ? `<br><b style="color:var(--bad)">${esc(cloudSt.state === "auth" ? "Votre session a expiré : déconnectez-vous puis reconnectez-vous." : cloudSt.msg || "Erreur de synchronisation.")}</b>` : "";
-    return `${hr}<p class="small" style="margin:0 0 10px">Connecté : <b>${esc(S.cloud.email)}</b><br><span class="muted">État : ${esc(cloudLabel())} · dernière synchro : ${esc(t)}</span>${msg}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloudsync">Synchroniser maintenant</button><button class="btn ghost sm" data-act="cloudout">Se déconnecter</button></div>
-      <p class="small muted">Vos données sont sauvegardées et partagées entre vos appareils. « Tout effacer » s'applique aussi au cloud.</p>`;
-  }
-  return `${hr}<p class="small muted" style="margin:0 0 10px">Connectez un compte pour sauvegarder vos données et les retrouver sur d'autres appareils. La synchronisation est automatique.</p>
-    <div class="field"><label for="c-mail">E-mail</label><input type="text" id="c-mail" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false"></div>
-    <div class="field"><label for="c-pass">Mot de passe</label><input type="password" id="c-pass" autocomplete="current-password" style="width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--line);background:var(--bg);min-height:44px"></div>
-    <p class="small" id="c-err" role="alert" style="min-height:20px;margin:0 0 8px"></p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="cloudin">Se connecter</button><button class="btn ghost sm" data-act="cloudup">Créer un compte</button></div>`;
-}
-async function cloudAuth(create) {
-  const e = $("#c-mail").value.trim(), p = $("#c-pass").value, er = $("#c-err");
-  er.style.color = "var(--bad)";
-  if (!/^\S+@\S+\.\S+$/.test(e)) { er.textContent = "Adresse e-mail invalide."; return; }
-  if (p.length < (create ? 8 : 1)) { er.textContent = create ? "Mot de passe : 8 caractères minimum." : "Entrez votre mot de passe."; return; }
-  er.style.color = "var(--muted)"; er.textContent = "Connexion…";
-  try { await Sync.signIn(e, p, create); closeSheet(); render(); toast("Connecté. Synchronisation en cours…"); }
-  catch (x) { er.style.color = "var(--bad)"; er.textContent = (x && x.message) || "Connexion impossible."; }
+  const hr = '<hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><div class="lbl" style="margin-bottom:8px">Compte</div>';
+  if (isDemo()) return `${hr}<p class="small muted" style="margin:0 0 10px">Vous êtes en mode démo : rien n'est sauvegardé dans le cloud. Créez un compte pour garder vos vraies données et les retrouver sur tous vos appareils.</p><button class="btn sm" data-act="exitdemo">Créer un compte ou me connecter</button>`;
+  const c = S.cloud || {};
+  const t = c.lastSync ? new Date(c.lastSync).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "pas encore";
+  const msg = cloudSt.state === "error" || cloudSt.state === "auth" ? `<br><b style="color:var(--bad)">${esc(cloudSt.msg || (cloudSt.state === "auth" ? "Session expirée : déconnectez-vous puis reconnectez-vous." : "Erreur de synchronisation."))}</b>` : "";
+  return `${hr}<p class="small" style="margin:0 0 10px"><b>${esc(c.username || "")}</b> · ${esc(c.email || "")}<br><span class="muted">État : ${esc(cloudLabel())} · dernière synchro : ${esc(t)}</span>${msg}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloudsync">Synchroniser maintenant</button><button class="btn ghost sm" data-act="logout">Se déconnecter</button></div>
+    <p class="small muted">Vos données sont sauvegardées automatiquement et partagées entre vos appareils. « Tout effacer » s'applique aussi au cloud.</p>`;
 }
 function sheetGoal() {
   openSheet(`<h2>Nouvel objectif</h2><form id="fgoal">
@@ -417,12 +412,17 @@ document.addEventListener("click", e => {
     case "addbud": sheetBudget(); break;
     case "settings": sheetSettings(); break;
     case "close": closeSheet(); break;
-    case "cloudin": case "cloudup": cloudAuth(a === "cloudup"); break;
     case "cloudsync": Sync.schedule(0); toast("Synchronisation lancée"); break;
-    case "cloudout": Sync.signOut().then(() => { closeSheet(); render(); toast("Déconnecté du cloud. Vos données restent sur ce téléphone."); }); break;
-    case "lockNow": Lock.lockNow(); break;
-    case "chpin": sheetPin(); break;
-    case "delacct": if (!el.dataset.armed) { el.dataset.armed = "1"; el.textContent = "Confirmer la suppression"; el.classList.add("danger"); el.classList.remove("ghost"); } else { Auth.wipe(); location.reload(); } break;
+    case "logout": {
+      if (!el.dataset.armed) {
+        const n = Sync.pending(); el.dataset.armed = "1"; el.classList.add("danger"); el.classList.remove("ghost");
+        el.textContent = n > 0 ? `${n} modification${n > 1 ? "s" : ""} non synchronisée${n > 1 ? "s" : ""} : confirmer quand même` : "Confirmer la déconnexion";
+        if (n > 0) Sync.schedule(0);
+      } else { closeSheet(); Lock.logout(); }
+      break;
+    }
+    case "exitdemo": if (!el.dataset.armed) { el.dataset.armed = "1"; el.textContent = "Les données de la démo seront supprimées : confirmer"; } else { closeSheet(); Lock.exitDemo(); } break;
+    case "setupinc": { const v = num($("#setinc").value); if (!(v > 0)) { $("#setinc").focus(); break; } S.income = Math.round(v); suggestBudgets(S.income); persist(); render(); toast("Budget configuré. Ajustez-le dans Budgets."); break; }
     case "mprev": ui.month = addM(ui.month, -1); render(); break;
     case "mnext": if (ui.month < nowKey) { ui.month = addM(ui.month, 1); render(); } break;
     case "seg": ui.seg = el.dataset.seg; render(); break;
@@ -433,9 +433,9 @@ document.addEventListener("click", e => {
     case "goaldel": S.goals = S.goals.filter(g => g.id !== id); persist(); render(); break;
     case "dep": ui.dep = id; render(); setTimeout(() => { const i = $("#depamt"); if (i) i.focus(); }, 20); break;
     case "depok": { const v = num($("#depamt").value), g = S.goals.find(x => x.id === id); if (g && v > 0) { g.saved += Math.round(v); ui.dep = null; persist(); render(); toast(`${fmt(v)} ajoutés à « ${g.name} »`); } break; }
-    case "cleardemo": S.tx = S.tx.filter(t => !t.x); S.goals = S.goals.filter(g => !g.x); persist(); render(); toast("Exemples supprimés. À vous de jouer !"); break;
+    case "cleardemo": S.tx = S.tx.filter(t => !t.x); S.goals = S.goals.filter(g => !g.x); persist(); render(); toast("Exemples supprimés. Essayez d'ajouter vos propres dépenses."); break;
     case "loaddemo": { const d = demoData(new Date()); S.tx = S.tx.filter(t => !t.x).concat(d.tx); S.goals = S.goals.filter(g => !g.x).concat(d.goals); persist(); closeSheet(); render(); toast("Exemples chargés"); break; }
-    case "reset1": if (!resetArmed) { resetArmed = true; el.textContent = "Confirmer l'effacement"; el.classList.add("danger"); el.classList.remove("ghost"); } else { resetArmed = false; const cl = S.cloud; S = freshState(); if (cl) S.cloud = cl; persist(); closeSheet(); render(); toast("Toutes les données ont été effacées"); } break;
+    case "reset1": if (!resetArmed) { resetArmed = true; el.textContent = "Confirmer l'effacement"; el.classList.add("danger"); el.classList.remove("ghost"); } else { resetArmed = false; const cl = S.cloud; S = isDemo() ? freshState() : freshCloudState(); if (cl) S.cloud = cl; persist(); closeSheet(); render(); toast("Toutes les données ont été effacées"); } break;
   }
 });
 document.addEventListener("change", e => {
@@ -447,19 +447,19 @@ document.addEventListener("change", e => {
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#sheet").hidden) closeSheet(); });
 
 function sheetPin() {
-  openSheet(`<h2>Changer le code</h2><form id="fpin">
-    <div class="field"><label for="p-old">Code actuel</label><input type="password" id="p-old" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
-    <div class="field"><label for="p-new">Nouveau code (6 chiffres)</label><input type="password" id="p-new" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
-    <div class="field"><label for="p-new2">Confirmer le nouveau code</label><input type="password" id="p-new2" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+  openSheet(`<h2>Changer le PIN</h2><form id="fpin">
+    <div class="field"><label for="p-old">PIN actuel</label><input type="password" id="p-old" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+    <div class="field"><label for="p-new">Nouveau PIN (6 chiffres)</label><input type="password" id="p-new" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+    <div class="field"><label for="p-new2">Confirmer le nouveau PIN</label><input type="password" id="p-new2" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
     <p class="small muted" id="p-err" role="alert" style="min-height:20px;color:var(--bad);margin:0 0 8px"></p>
     <div class="actions"><button type="button" class="btn ghost" data-act="close">Annuler</button><button class="btn" type="submit">Changer</button></div></form>`, "#p-old");
   $("#fpin").addEventListener("submit", async e => {
     e.preventDefault(); const o = $("#p-old").value, n = $("#p-new").value, n2 = $("#p-new2").value, er = $("#p-err");
-    if (!/^\d{6}$/.test(n)) { er.textContent = "Le nouveau code doit avoir 6 chiffres."; return; }
-    if (n !== n2) { er.textContent = "Les deux nouveaux codes sont différents."; return; }
-    if (Lock.weak(n)) { er.textContent = "Code trop simple. Évitez 123456 ou 111111."; return; }
-    try { await flushNow(); await Auth.changePin(o, n, JSON.parse(JSON.stringify(S))); closeSheet(); toast("Code modifié"); }
-    catch (x) { er.textContent = x && x.code === "bad_pin" ? "Le code actuel est incorrect." : "Impossible de changer le code."; }
+    if (!/^\d{6}$/.test(n)) { er.textContent = "Le nouveau PIN doit avoir 6 chiffres."; return; }
+    if (n !== n2) { er.textContent = "Les deux nouveaux PIN sont différents."; return; }
+    if (Lock.weak(n)) { er.textContent = "PIN trop simple. Évitez 123456 ou 111111."; return; }
+    try { await flushNow(); await Sync.changePin(o, n); saveQuiet(); closeSheet(); toast("PIN modifié"); }
+    catch (x) { er.textContent = x && x.code === "bad_pin" ? "Le PIN actuel est incorrect." : x && x.message || "Impossible de changer le PIN."; }
   });
 }
 

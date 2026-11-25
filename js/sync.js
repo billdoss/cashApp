@@ -78,7 +78,8 @@ const Sync = (() => {
     const { data: p, error: pe } = await client.from("profile").select("*").maybeSingle();
     if (pe) throw pe;
     if (cloud() !== c) return changed;
-    if (p) {
+    if (p && c.pinv && p.pin_hash && p.pin_hash !== c.pinv) throw { authpin: true, message: "Le PIN a changé sur un autre appareil. Déconnectez-vous puis reconnectez-vous." };
+    if (p && p.income != null) { /* profil créé à l'inscription, sans revenu : rien à recevoir */
       const ru = Number(p.u) || 0, e = c.shadow.prof;
       if (first || !e || (!e.dirty && ru > e.u) || (e.dirty && ru > e.u)) {
         if (S.income !== p.income || S.cur !== p.cur || S.thr !== p.thr) changed++;
@@ -145,8 +146,8 @@ const Sync = (() => {
   }
   function drop() { try { if (client) client.auth.stopAutoRefresh(); } catch (e) { } client = null; restored = false; }
 
-  const isAuthErr = e => e && (e.status === 401 || e.status === 403 || /jwt|refresh token|not authenticated|invalid token/i.test(e.message || ""));
-  const FR = [[/invalid login credentials/i, "E-mail ou mot de passe incorrect."], [/already registered|already been registered/i, "Un compte existe déjà avec cet e-mail. Connectez-vous."], [/password should be|at least \d+ char/i, "Mot de passe trop court (8 caractères minimum)."], [/email not confirmed/i, "Confirmez d'abord votre e-mail (lien reçu par message), puis connectez-vous."], [/rate limit|too many/i, "Trop de tentatives. Réessayez dans quelques minutes."], [/failed to fetch|network/i, "Pas de connexion internet."]];
+  const isAuthErr = e => e && (e.authpin || e.status === 401 || e.status === 403 || /jwt|refresh token|not authenticated|invalid token/i.test(e.message || ""));
+  const FR = [[/invalid login credentials/i, "Identifiant ou mot de passe incorrect."], [/already registered|already been registered/i, "Un compte existe déjà avec cet e-mail. Connectez-vous."], [/password should be|at least \d+ char/i, "Mot de passe trop court (8 caractères minimum)."], [/email not confirmed/i, "Confirmez d'abord votre e-mail (lien reçu par message), puis connectez-vous."], [/rate limit|too many/i, "Trop de tentatives. Réessayez dans quelques minutes."], [/failed to fetch|network/i, "Pas de connexion internet."]];
   const frMsg = m => { for (const [re, t] of FR) if (re.test(m || "")) return t; return m || "Opération impossible."; };
 
   /* ----- cycle de synchronisation ----- */
@@ -174,27 +175,95 @@ const Sync = (() => {
   }
   function schedule(ms) { clearTimeout(timer); if (!cloud()) return; timer = setTimeout(run, ms == null ? 1500 : ms); }
 
-  async function signIn(email, password, create) {
-    const cl = await ensure();
-    const r = create ? await cl.auth.signUp({ email, password }) : await cl.auth.signInWithPassword({ email, password });
-    if (r.error) throw { message: frMsg(r.error.message) };
-    const ses = r.data && r.data.session;
-    if (!ses) throw { message: "Compte créé. Confirmez votre e-mail avec le lien reçu, puis connectez-vous." };
-    const S = api.state();
-    S.cloud = { email, uid: r.data.user.id, session: { access_token: ses.access_token, refresh_token: ses.refresh_token }, last: 0, shadow: { tx: {}, cat: {}, goal: {} }, first: true };
-    restored = true; api.saveQuiet(); schedule(0);
+  /* ----- comptes : création, connexion, PIN ----- */
+  const wrap = e => ({ message: frMsg(e && e.message), code: e && e.code });
+  const infoOf = (user, ses, extra) => ({ uid: user.id, email: user.email, session: { access_token: ses.access_token, refresh_token: ses.refresh_token }, ...extra });
+
+  /* État cloud à ranger dans le coffre d'un nouvel appareil. */
+  function newCloud(info) {
+    restored = true;
+    return { email: info.email, username: info.username, uid: info.uid, session: info.session, pinv: info.pinv, last: 0, shadow: { tx: {}, cat: {}, goal: {} }, first: true };
   }
-  async function signOut() {
+
+  async function register({ email, username, password, pin }) {
+    const cl = await ensure();
+    username = String(username).toLowerCase();
+    const av = await cl.rpc("username_available", { p_username: username });
+    if (av.error) throw { message: /function|schema cache|not find/i.test(av.error.message || "") ? "Le serveur n'est pas prêt : exécutez supabase/schema.sql (version 2) dans Supabase." : frMsg(av.error.message) };
+    if (av.data === false) throw { message: "Ce nom d'utilisateur est déjà pris." };
+    const salt = Auth.randomSalt(), hash = await Auth.pinHash(pin, salt);
+    const r = await cl.auth.signUp({ email, password, options: { data: { username, pin_salt: salt, pin_hash: hash } } });
+    if (r.error) throw wrap(r.error);
+    const u = r.data && r.data.user;
+    if (u && Array.isArray(u.identities) && u.identities.length === 0) throw { message: "Un compte existe déjà avec cet e-mail. Connectez-vous." };
+    const ses = r.data && r.data.session;
+    if (!ses) return { needsConfirm: true };
+    return { info: infoOf(u, ses, { username, pinv: hash }) };
+  }
+
+  /* Première connexion sur un appareil : identifiant + mot de passe + PIN (comparé au PIN du compte).
+     resetPin : mot de passe correct => le PIN saisi devient le nouveau PIN du compte. */
+  async function login({ login, password, pin, resetPin }) {
+    const cl = await ensure(); let email = String(login).trim();
+    if (!email.includes("@")) {
+      const r = await cl.rpc("login_email", { p_login: email.toLowerCase() });
+      if (r.error) throw { message: /function|schema cache|not find/i.test(r.error.message || "") ? "Le serveur n'est pas prêt : exécutez supabase/schema.sql (version 2) dans Supabase." : frMsg(r.error.message) };
+      if (!r.data) throw { message: "Identifiant ou mot de passe incorrect." };
+      email = r.data;
+    }
+    const r = await cl.auth.signInWithPassword({ email, password });
+    if (r.error) throw wrap(r.error);
+    const ses = r.data.session, user = r.data.user;
+    try {
+      const { data: p, error } = await cl.from("profile").select("username,pin_salt,pin_hash").maybeSingle();
+      if (error) throw error;
+      let salt = p && p.pin_salt, hash = p && p.pin_hash;
+      if (hash && !resetPin) {
+        if ((await Auth.pinHash(pin, salt)) !== hash) throw { message: "PIN incorrect.", code: "bad_pin" };
+      } else {
+        salt = Auth.randomSalt(); hash = await Auth.pinHash(pin, salt);
+        const { error: e2 } = await cl.from("profile").upsert({ user_id: user.id, pin_salt: salt, pin_hash: hash }, { onConflict: "user_id" });
+        if (e2) throw e2;
+      }
+      const username = (p && p.username) || (user.user_metadata && user.user_metadata.username) || String(login).trim().toLowerCase();
+      return { info: infoOf(user, ses, { username, pinv: hash }) };
+    } catch (e) {
+      try { await cl.auth.signOut(); } catch (x) { }
+      drop();
+      throw e && e.code === "bad_pin" ? e : wrap(e);
+    }
+  }
+
+  /* Nombre de modifications pas encore envoyées au cloud. */
+  function pending() { const S = api && api.state(); if (!S || !S.cloud) return 0; return S.cloud.first ? 1 : reconcile(S); }
+
+  /* Changement de PIN : cloud d'abord (les autres appareils devront ressaisir le nouveau PIN), puis coffre local. */
+  async function changePin(oldPin, newPin) {
+    const S = api.state(), c = cloud();
+    if (!(await Auth.verifyPin(oldPin))) throw { code: "bad_pin" };
+    if (c) {
+      try {
+        if (navigator.onLine === false) throw { message: "Pas de connexion internet." };
+        const cl = await ensure(); await restore();
+        const salt = Auth.randomSalt(), hash = await Auth.pinHash(newPin, salt);
+        const { error } = await cl.from("profile").upsert({ user_id: c.uid, pin_salt: salt, pin_hash: hash }, { onConflict: "user_id" });
+        if (error) throw error;
+        c.pinv = hash;
+      } catch (e) { throw { code: "cloud", message: "Connexion au cloud requise pour changer le PIN. " + frMsg(e && e.message) }; }
+    }
+    await Auth.rekey(newPin, JSON.parse(JSON.stringify(S)));
+  }
+
+  /* Quitte le compte (le coffre local est effacé par l'appelant). */
+  async function leave() {
     try { if (client) await client.auth.signOut(); } catch (e) { }
-    drop(); clearTimeout(timer);
-    const S = api.state(); if (S) { S.cloud = null; api.saveQuiet(); }
-    setStatus("off");
+    drop(); clearTimeout(timer); st = { state: "off" };
   }
   function onLock() { clearTimeout(timer); drop(); st = { state: "off" }; }
 
   return {
     init(a) { api = a; },
-    configured, schedule, signIn, signOut, onLock, run,
+    configured, schedule, register, login, newCloud, pending, changePin, leave, onLock, run,
     connected: () => !!cloud(),
     status: () => st
   };

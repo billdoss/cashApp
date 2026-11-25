@@ -86,7 +86,7 @@ main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .btn[disabled] { opacity: .5; cursor: default; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .field > label, .lbl { font-size: 12.5px; font-weight: 700; color: var(--muted); }
-input[type=text], input[type=date], input[type=month], select, textarea { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--bg); min-height: 44px; }
+input[type=text], input[type=email], input[type=password], input[type=date], input[type=month], select, textarea { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--bg); min-height: 44px; }
 textarea { resize: vertical; min-height: 76px; }
 .amount-in { font-family: var(--f-num); font-size: 28px; font-weight: 700; padding: 12px; }
 .cats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -173,3 +173,12 @@ nav .badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 16p
 .chk { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; margin: 4px 0 16px; }
 .chk input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--accent); flex: none; }
 .lk .note { background: var(--accent-soft); border-radius: 12px; padding: 12px; font-size: 13.5px; color: var(--ink); text-align: left; margin-top: 16px; }
+
+/* page de connexion */
+.lk.wide { max-width: 400px; }
+.lk .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 100%; background: var(--accent-soft); padding: 4px; border-radius: 13px; margin-top: 16px; }
+.lk .tabs button { border: 0; background: transparent; padding: 10px 8px; border-radius: 10px; font-weight: 700; color: var(--muted); min-height: 44px; }
+.lk .tabs button[aria-selected=true] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.lk .sep { width: 100%; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 18px 0 12px; }
+.lk .sep::before, .lk .sep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.lk .field input { font-size: 16px; }
