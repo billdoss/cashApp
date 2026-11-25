@@ -19,6 +19,13 @@ const Lock = (() => {
   const pinField = (id, label, auto) => `<div class="field"><label for="${id}">${label}</label><input type="password" id="${id}" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="${auto || "off"}" placeholder="6 chiffres" required></div>`;
   const v = k => esc(keep[k] || "");
 
+  function installHint() {
+    if (Install.standalone()) return "";
+    const ios = Install.ios();
+    return `<div class="note" id="insthint" style="margin-top:16px;width:100%">${ios
+      ? "Pour l'utiliser comme une vraie application : touchez <b>Partager</b> (carré avec une flèche) puis <b>Sur l'écran d'accueil</b>."
+      : `Pour l'utiliser comme une vraie application, ajoutez-la à votre écran d'accueil (menu ⋮ du navigateur → <b>Installer l'application</b>).<button class="btn sm" id="inst" type="button" style="margin-top:8px" ${Install.ev ? "" : "hidden"}>Installer maintenant</button>`}</div>`;
+  }
   function authView() {
     const login = tab === "login", cfg = Sync.configured();
     const form = !cfg ? `<div class="note">La connexion au cloud n'est pas encore configurée. Vous pouvez essayer la démo.</div>`
@@ -44,6 +51,7 @@ const Lock = (() => {
     return `<div class="lk wide">${MARK}<h1>Sika</h1><p>Votre budget, vos alertes, vos économies.</p>
       ${cfg ? `<div class="tabs" role="tablist"><button type="button" role="tab" aria-selected="${login}" data-tab="login">Connexion</button><button type="button" role="tab" aria-selected="${!login}" data-tab="register">Créer un compte</button></div>` : ""}
       ${form}
+      ${installHint()}
       <div class="sep"><span>ou</span></div>
       <button class="btn ghost" type="button" id="demo">${Auth.hasDemo() ? "Reprendre la démo" : "Essayer la démo"}</button>
       <p class="small muted" style="font-size:12.5px;margin-top:8px">La démo fonctionne sans compte, avec des données d'exemple stockées seulement sur cet appareil. Sans PIN ni sauvegarde.</p></div>`;
@@ -147,6 +155,7 @@ const Lock = (() => {
     const k = e.target.closest("[data-k]"); if (k) return press(k.dataset.k);
     const t = e.target.closest("[data-tab]"); if (t) { keep = { id: ($l("#a-id") || {}).value || "", mail: ($l("#a-mail") || {}).value || "" }; return showAuth(t.dataset.tab, { keep, quiet: true }); }
     if (e.target.closest("#demo")) return startDemo();
+    if (e.target.closest("#inst")) return Install.prompt();
     if (e.target.closest("#rst")) { keep = { id: ($l("#a-id") || {}).value || "" }; return showAuth("login", { reset: !reset, keep, quiet: true }); }
     if (e.target.closest("#fg")) return showAuth("login", { reset: true, keep: { id: Auth.name() }, ok: "Entrez votre mot de passe pour choisir un nouveau PIN." });
     const o = e.target.closest("#other");
