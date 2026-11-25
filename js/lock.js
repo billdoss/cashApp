@@ -48,7 +48,7 @@ const Lock = (() => {
           <button class="btn" type="submit">Créer mon compte</button>
           <p class="small muted" style="font-size:12.5px;margin-top:10px">Le PIN protège l'application sur ce téléphone. À la première connexion sur un nouvel appareil, il faut le nom d'utilisateur, le mot de passe et le PIN ; ensuite le PIN suffit.</p>
         </form>`;
-    return `<div class="lk wide">${MARK}<h1>Sika</h1><p>Votre budget, vos alertes, vos économies.</p>
+    return `<div class="lk wide">${MARK}<h1>FedhApp</h1><p>Votre budget, vos alertes, vos économies.</p>
       ${cfg ? `<div class="tabs" role="tablist"><button type="button" role="tab" aria-selected="${login}" data-tab="login">Connexion</button><button type="button" role="tab" aria-selected="${!login}" data-tab="register">Créer un compte</button></div>` : ""}
       ${form}
       ${installHint()}
@@ -57,7 +57,7 @@ const Lock = (() => {
       <p class="small muted" style="font-size:12.5px;margin-top:8px">La démo fonctionne sans compte, avec des données d'exemple stockées seulement sur cet appareil. Sans PIN ni sauvegarde.</p></div>`;
   }
   function pinView() {
-    return `<div class="lk">${MARK}<h1>Bonjour, ${esc(Auth.name())}</h1><p>Entrez votre PIN pour ouvrir Sika.</p>${dots()}<div class="msg ${err ? "bad" : ""}" id="msg" role="alert">${esc(err)}</div>${keypad()}
+    return `<div class="lk">${MARK}<h1>Bonjour, ${esc(Auth.name())}</h1><p>Entrez votre PIN pour ouvrir FedhApp.</p>${dots()}<div class="msg ${err ? "bad" : ""}" id="msg" role="alert">${esc(err)}</div>${keypad()}
       <button class="link" id="fg">PIN oublié ?</button><button class="link" id="other" style="margin-top:0">Autre compte</button></div>`;
   }
   function view() {

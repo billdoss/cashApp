@@ -1,6 +1,6 @@
 {
-  "name": "Sika Budget",
-  "short_name": "Sika",
+  "name": "FedhApp",
+  "short_name": "FedhApp",
   "description": "Dépenses, budgets, prévisions et épargne, avec des données chiffrées sur votre téléphone.",
   "lang": "fr",
   "start_url": "./",

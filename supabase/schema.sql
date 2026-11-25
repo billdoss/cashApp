@@ -1,4 +1,4 @@
--- Sika Budget : schéma Supabase
+-- FedhApp : schéma Supabase
 -- À coller dans Supabase > SQL Editor > New query, puis Run. Peut être relancé sans risque.
 -- Chaque ligne appartient à un utilisateur (user_id) et n'est visible que par lui (Row Level Security).
 -- "u" = date de dernière modification en millisecondes (la plus récente gagne).

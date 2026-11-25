@@ -1,4 +1,4 @@
-/* Sika Budget : interface et logique. Les données passent par Store (js/storage.js). */
+/* FedhApp : interface et logique. Les données passent par Store (js/storage.js). */
 "use strict";
 /* ---------- utilitaires ---------- */
 const $ = (s, r = document) => r.querySelector(s);

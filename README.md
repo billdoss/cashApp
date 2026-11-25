@@ -1,4 +1,4 @@
-# Sika Budget
+# FedhApp
 
 Application mobile (PWA) de gestion de dépenses : budgets avec alertes, statistiques, prévisions, objectifs d'épargne et conseiller. Installable sur l'écran d'accueil, fonctionne sans réseau.
 
