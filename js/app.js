@@ -137,7 +137,7 @@ function goalInfo(g, A) {
 }
 function tipsOf(A) {
   const tips = []; const catName = c => c.name;
-  if (!A.hasData) return [{ lvl: "info", title: "Commencez par noter vos dépenses", text: "Appuyez sur « Dépense » pour enregistrer votre première dépense. Après quelques jours, Sika calcule vos prévisions et vous alerte avant que vous dépassiez vos budgets." }];
+  if (!A.hasData) return [{ lvl: "info", title: "Commencez par noter vos dépenses", text: "Appuyez sur « Dépense » pour enregistrer votre première dépense. Après quelques jours, FedhApp calcule vos prévisions et vous alerte avant que vous dépassiez vos budgets." }];
   for (const c of A.byCat) {
     if (c.lvl === "over") tips.push({ lvl: "bad", title: `${catName(c)} : budget dépassé`, text: `Vous avez dépensé ${fmt(c.spent)} pour un budget de ${fmt(c.budget)} (${fmt(c.spent - c.budget)} de trop). Évitez toute nouvelle dépense ici jusqu'à la fin du mois, ou prenez la différence sur une catégorie plus souple.` });
     else if (c.lvl === "near") tips.push({ lvl: "warn", title: `${catName(c)} : ${pct(c.ratio)} du budget utilisé`, text: `Il reste ${fmt(c.budget - c.spent)} pour ${A.rem} jour${A.rem > 1 ? "s" : ""}${A.rem > 0 ? `, soit ${fmt((c.budget - c.spent) / Math.max(1, A.rem))} par jour` : ""}.` });
