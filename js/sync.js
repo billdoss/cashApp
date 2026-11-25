@@ -147,7 +147,7 @@ const Sync = (() => {
   function drop() { try { if (client) client.auth.stopAutoRefresh(); } catch (e) { } client = null; restored = false; }
 
   const isAuthErr = e => e && (e.authpin || e.status === 401 || e.status === 403 || /jwt|refresh token|not authenticated|invalid token/i.test(e.message || ""));
-  const FR = [[/invalid login credentials/i, "Identifiant ou mot de passe incorrect."], [/already registered|already been registered/i, "Un compte existe déjà avec cet e-mail. Connectez-vous."], [/password should be|at least \d+ char/i, "Mot de passe trop court (8 caractères minimum)."], [/email not confirmed/i, "Confirmez d'abord votre e-mail (lien reçu par message), puis connectez-vous."], [/rate limit|too many/i, "Trop de tentatives. Réessayez dans quelques minutes."], [/failed to fetch|network/i, "Pas de connexion internet."]];
+  const FR = [[/invalid login credentials/i, "Identifiant ou mot de passe incorrect."], [/already registered|already been registered/i, "Un compte existe déjà avec cet e-mail. Connectez-vous."], [/password should be|at least \d+ char/i, "Mot de passe trop court (8 caractères minimum)."], [/email not confirmed/i, "Confirmez d'abord votre e-mail (lien reçu par message), puis connectez-vous."], [/email rate limit|over_email_send_rate_limit/i, "Trop d'e-mails de confirmation envoyés en peu de temps (limite du service e-mail). Réessayez dans environ une heure, ou contactez l'administrateur."], [/rate limit|too many/i, "Trop de tentatives. Réessayez dans quelques minutes."], [/failed to fetch|network/i, "Pas de connexion internet."]];
   const frMsg = m => { for (const [re, t] of FR) if (re.test(m || "")) return t; return m || "Opération impossible."; };
 
   /* ----- cycle de synchronisation ----- */

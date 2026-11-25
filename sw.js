@@ -1,6 +1,6 @@
 /* Service worker : l'application s'ouvre sans réseau.
    Changez VERSION à chaque mise en ligne pour forcer la mise à jour des fichiers. */
-const VERSION = "sika-v7";
+const VERSION = "sika-v8";
 const SHELL = ["./", "index.html", "css/styles.css", "js/config.js", "js/shell.js", "js/auth.js", "js/storage.js", "js/sync.js", "js/app.js", "js/lock.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
