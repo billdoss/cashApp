@@ -18,7 +18,13 @@
   --ok: #4CC38A; --ok-soft: #123526; --warn: #E3A53E; --warn-soft: #3A2C10; --bad: #F0746F; --bad-soft: #3D1B1B;
   --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark; }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; touch-action: manipulation; background: var(--bg); }
+body { min-height: 100vh; min-height: 100dvh; overscroll-behavior: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-font-smoothing: antialiased; }
+input, textarea, select { -webkit-user-select: text; user-select: text; font-size: 16px !important; -webkit-appearance: none; appearance: none; touch-action: manipulation; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23788' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px !important; }
+img, svg { -webkit-user-drag: none; }
+button { touch-action: manipulation; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -102,7 +108,7 @@ textarea { resize: vertical; min-height: 76px; }
 .tip p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .tip.bad { background: var(--bad-soft); border-color: transparent; } .tip.warn { background: var(--warn-soft); border-color: transparent; } .tip.ok { background: var(--ok-soft); border-color: transparent; }
 .tip.bad p, .tip.warn p, .tip.ok p { color: var(--ink); }
-.banner { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; font-size: 13.5px; }
+.banner { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; background: var(--accent-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; font-size: 13.5px; }
 .banner .btn { flex: none; }
 .chart { width: 100%; height: auto; display: block; }
 .chart text { fill: var(--muted); font-family: var(--f-num); font-size: 9.5px; }
@@ -182,3 +188,6 @@ nav .badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 16p
 .lk .sep { width: 100%; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 18px 0 12px; }
 .lk .sep::before, .lk .sep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .lk .field input { font-size: 16px; }
+
+.banner > span:first-child { flex: 1 1 200px; min-width: 0; }
+.banner > span:last-child { flex: 0 0 auto; }

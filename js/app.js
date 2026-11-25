@@ -202,7 +202,7 @@ function renderNav(A) {
 function monthNav() {
   return `<div class="card mnav"><button class="icon-btn" data-act="mprev" aria-label="Mois précédent"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><b>${esc(monthLabel(ui.month))}</b><button class="icon-btn" data-act="mnext" aria-label="Mois suivant" ${ui.month >= nowKey ? "disabled" : ""}><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>`;
 }
-const demoBanner = () => isDemo() ? `<div class="banner"><span><b>Mode démo</b> : données d'exemple stockées seulement sur cet appareil, sans PIN ni sauvegarde.</span><span style="display:flex;gap:6px;flex:none"><button class="btn ghost sm" data-act="cleardemo">Vider</button><button class="btn sm" data-act="exitdemo">Créer un compte</button></span></div>` : "";
+const demoBanner = () => isDemo() ? `<div class="banner"><span><b>Mode démo</b> : exemples stockés sur cet appareil, sans sauvegarde.</span><span style="display:flex;gap:6px;flex:none"><button class="btn ghost sm" data-act="cleardemo">Vider</button><button class="btn sm" data-act="exitdemo">Créer un compte</button></span></div>` : "";
 const setupCard = () => (!isDemo() && !S.income) ? `<section class="card"><h2>Bienvenue ! Configurons votre budget</h2><p class="small muted" style="margin:0 0 12px">Indiquez votre revenu mensuel. Nous répartissons automatiquement des budgets par catégorie (modifiables ensuite dans Budgets) et gardons 15 % pour l'épargne.</p><div class="field"><label for="setinc">Revenu mensuel (${esc(S.cur)})</label><input type="text" id="setinc" inputmode="numeric" placeholder="ex. 350000"></div><button class="btn" data-act="setupinc">Enregistrer</button></section>` : "";
 
 function viewHome(A) {
